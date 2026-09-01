@@ -1,0 +1,20 @@
+{
+  "relu": {
+    "activation": "relu",
+    "best_epoch": 60,
+    "val_accuracy": 0.7626086956521739,
+    "val_f1_macro": 0.7221568965804671
+  },
+  "gelu": {
+    "activation": "gelu",
+    "best_epoch": 60,
+    "val_accuracy": 0.76,
+    "val_f1_macro": 0.7216338568602957
+  },
+  "swish": {
+    "activation": "swish",
+    "best_epoch": 60,
+    "val_accuracy": 0.7478260869565218,
+    "val_f1_macro": 0.7111988433198286
+  }
+}

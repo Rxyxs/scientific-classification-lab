@@ -1,0 +1,48 @@
+{
+  "n_rows_used": 9200,
+  "n_rows_raw": 9564,
+  "n_train": 6900,
+  "n_test": 2300,
+  "classes": [
+    "CANDIDATE",
+    "CONFIRMED",
+    "FALSE POSITIVE"
+  ],
+  "baseline_accuracy": 0.4978,
+  "baseline_f1_macro": 0.2216,
+  "xgboost_accuracy": 0.793,
+  "xgboost_f1_macro": 0.7564,
+  "xgboost_classification_report": {
+    "CANDIDATE": {
+      "precision": 0.5958904109589042,
+      "recall": 0.5576923076923077,
+      "f1-score": 0.5761589403973509,
+      "support": 468.0
+    },
+    "CONFIRMED": {
+      "precision": 0.8250688705234159,
+      "recall": 0.8719068413391557,
+      "f1-score": 0.8478414720452937,
+      "support": 687.0
+    },
+    "FALSE POSITIVE": {
+      "precision": 0.8485915492957746,
+      "recall": 0.8419213973799127,
+      "f1-score": 0.8452433143358177,
+      "support": 1145.0
+    },
+    "accuracy": 0.7930434782608695,
+    "macro avg": {
+      "precision": 0.7565169435926982,
+      "recall": 0.7571735154704587,
+      "f1-score": 0.7564145755928208,
+      "support": 2300.0
+    },
+    "weighted avg": {
+      "precision": 0.7901462392704416,
+      "recall": 0.7930434782608695,
+      "f1-score": 0.7912665523111254,
+      "support": 2300.0
+    }
+  }
+}
