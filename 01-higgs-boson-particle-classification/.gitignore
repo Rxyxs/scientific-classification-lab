@@ -12,6 +12,3 @@ outputs/reports/*
 !outputs/reports/*.gif
 *.duckdb
 .ipynb_checkpoints/
-
-CLAUDE.md
-.claude/
