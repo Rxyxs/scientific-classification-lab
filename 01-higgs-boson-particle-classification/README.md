@@ -84,6 +84,23 @@ julia --project=julia -e "using Pkg; Pkg.instantiate()"
 julia --project=julia julia\ams_sweep.jl
 ```
 
+## Interactive chart
+
+`python -m src.interactive` retrains LightGBM and the PyTorch MLP on the real train split and sweeps 200 probability thresholds on the real public-test predictions (100,000 events), producing a self-contained interactive Plotly chart of **AMS vs. threshold** for both models side by side — hover any point for its exact AMS and threshold, and see each model's optimum marked with a star.
+
+**[View the interactive chart](https://htmlpreview.github.io/?https://github.com/Rxyxs/scientific-classification-lab/blob/main/01-higgs-boson-particle-classification/outputs/interactive/ams_threshold_sweep.html)**
+
+## Techniques used
+
+- **Real scientific data**: 818,238 real ATLAS collision events from CERN Open Data (record 328), official `KaggleSet`-based train/public-test/private-test split — no synthetic data, no random split.
+- **Domain-aware missing-value handling**: `-999.0` sentinel imputed by `PRI_jet_num` group (not global median) plus explicit `_missing` flags, because the missingness is physically, not randomly, caused.
+- **Model iteration**: Decision Tree baseline → LightGBM (gradient boosting) → PyTorch MLP (Dropout + BatchNorm) → Optuna-tuned LightGBM (40 trials, AMS optimized directly).
+- **Domain-correct evaluation metric**: AMS (Approximate Median Significance), the actual HiggsML Challenge metric, computed with `KaggleWeight`-weighted signal/background sums — not accuracy or plain AUC.
+- **Custom loss ablation**: Focal Loss (Lin et al., 2017) with a ReLU/GELU/Swish activation comparison on the PyTorch MLP.
+- **Independent cross-language verification**: a from-scratch AMS reimplementation in Julia, used for a finer-grained (2,000-threshold) sweep than the Python version, to test whether the AMS optimum is a fragile peak or a robust plateau.
+- **Persistence and serving**: DuckDB for features/predictions/metrics, FastAPI for real-time scoring (`POST /score`).
+- **Testing**: 10 pytest tests covering feature engineering, the AMS metric, and the activation comparison.
+
 ## Usage
 
 ```powershell
@@ -93,6 +110,7 @@ pip install -r requirements.txt
 python -m src.pipeline          # full pipeline, real data, real metrics
 pytest tests/ -q                # 10/10 passing
 python -m src.activation_comparison  # ReLU vs GELU vs Swish, FocalLoss
+python -m src.interactive       # interactive AMS-vs-threshold Plotly chart
 uvicorn src.api:app --reload    # POST /score
 ```
 

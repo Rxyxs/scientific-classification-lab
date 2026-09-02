@@ -47,6 +47,21 @@ La clase `CANDIDATE` es la más difícil (F1=0.58) — y tiene sentido físico: 
 
 ![Distribución de clases](reports/figures/class_distribution.png)
 
+## Gráfico interactivo
+
+`python -m src.visualization.interactive` genera un scatter interactivo (Plotly, HTML autocontenido) con las **2,300 predicciones reales del holdout**: periodo orbital vs. SNR del modelo de tránsito (ambos en escala log), coloreado por disposición real, con hover mostrando disposición real vs. predicha, profundidad de tránsito y radio del planeta. Los marcadores `X` son las predicciones incorrectas del propio modelo — se ve en vivo dónde falla, no solo el número agregado de accuracy.
+
+**[Ver gráfico interactivo](https://htmlpreview.github.io/?https://github.com/Rxyxs/scientific-classification-lab/blob/main/02-exoplanet-transit-classification/outputs/interactive/koi_feature_space.html)**
+
+## Técnicas utilizadas
+
+- **Ingesta de datos real**: descarga en vivo vía la API TAP de NASA (`requests` + query SQL-like), sin dataset descargado a mano ni caché estático.
+- **Feature engineering**: transformación `log1p` sobre 5 variables físicas con distribución muy sesgada (periodo, profundidad, radio, insolación, SNR) para que los modelos de árbol/red no queden dominados por outliers extremos; exclusión deliberada de las columnas `koi_fpflag_*` para evitar fuga de la etiqueta.
+- **Modelado**: baseline de clase mayoritaria (`DummyClassifier`) → XGBoost multiclase (`multi:softprob`, 300 árboles, profundidad 5) → ablación de red neuronal PyTorch (ReLU/GELU/Swish, BatchNorm+Dropout, early stopping por val loss).
+- **Explicabilidad**: SHAP (`TreeExplainer`) sobre el modelo XGBoost — no opcional, mandatorio para un caso de uso científico donde el "por qué" importa tanto como el accuracy.
+- **Evaluación**: split estratificado 75/25 (`random_state=42`), accuracy + F1-macro (más informativo que accuracy solo, dado el desbalance entre las 3 clases), matriz de confusión y reporte de clasificación por clase.
+- **Tests**: 6 tests de pytest, offline contra el parquet ya descargado, que verifican el reclamo central del repo (XGBoost supera al baseline) como aserción reproducible, no solo como número en el README.
+
 ## Tests
 
 ```bash
@@ -116,6 +131,21 @@ The `CANDIDATE` class is hardest (F1=0.58) — and that makes physical sense: it
 `koi_model_snr` (transit-model signal-to-noise ratio) dominates — matches physical intuition: a weak, noisy transit signal is the most common reason a KOI ends up as a false positive or stays unresolved.
 
 ![Class distribution](reports/figures/class_distribution.png)
+
+## Interactive chart
+
+`python -m src.visualization.interactive` produces an interactive scatter (Plotly, self-contained HTML) of the **2,300 real holdout predictions**: orbital period vs. transit-model SNR (both log-scaled), colored by real disposition, with hover text showing real vs. predicted disposition, transit depth, and planet radius. `X` markers are the model's actual misclassifications — you can see live where it fails, not just the aggregate accuracy number.
+
+**[View the interactive chart](https://htmlpreview.github.io/?https://github.com/Rxyxs/scientific-classification-lab/blob/main/02-exoplanet-transit-classification/outputs/interactive/koi_feature_space.html)**
+
+## Techniques used
+
+- **Real data ingestion**: live download via NASA's TAP API (`requests` + SQL-like query), no hand-downloaded dataset or static cache.
+- **Feature engineering**: `log1p` transform on 5 heavily right-skewed physical quantities (period, depth, radius, insolation, SNR) so tree/NN models aren't dominated by extreme outliers; deliberate exclusion of `koi_fpflag_*` columns to avoid label leakage.
+- **Modeling**: majority-class baseline (`DummyClassifier`) → multiclass XGBoost (`multi:softprob`, 300 trees, depth 5) → PyTorch MLP activation ablation (ReLU/GELU/Swish, BatchNorm+Dropout, early stopping on validation loss).
+- **Explainability**: SHAP (`TreeExplainer`) on the XGBoost model — mandatory, not optional, for a scientific use case where "why" matters as much as accuracy.
+- **Evaluation**: stratified 75/25 split (`random_state=42`), accuracy + F1-macro (more informative than accuracy alone given the 3-class imbalance), confusion matrix and per-class classification report.
+- **Tests**: 6 pytest tests, offline against the already-downloaded parquet, that verify the repo's central claim (XGBoost beats the baseline) as a reproducible assertion, not just a README number.
 
 ## Tests
 

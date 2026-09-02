@@ -84,6 +84,23 @@ julia --project=julia -e "using Pkg; Pkg.instantiate()"
 julia --project=julia julia\ams_sweep.jl
 ```
 
+## Gráfico interactivo
+
+`python -m src.interactive` reentrena LightGBM y la MLP de PyTorch sobre el split de train real y barre 200 umbrales de probabilidad sobre las predicciones reales del public-test (100.000 eventos), generando un gráfico interactivo Plotly autocontenido de **AMS vs. umbral** para ambos modelos lado a lado — hover en cualquier punto muestra su AMS y umbral exactos, y el óptimo de cada modelo queda marcado con una estrella.
+
+**[Ver el gráfico interactivo](https://htmlpreview.github.io/?https://github.com/Rxyxs/scientific-classification-lab/blob/main/01-higgs-boson-particle-classification/outputs/interactive/ams_threshold_sweep.html)**
+
+## Técnicas utilizadas
+
+- **Datos científicos reales**: 818.238 eventos reales de colisión de ATLAS de CERN Open Data (registro 328), split oficial train/public-test/private-test por `KaggleSet` — sin datos sintéticos, sin split aleatorio.
+- **Manejo de faltantes con criterio físico**: centinela `-999.0` imputado por grupo de `PRI_jet_num` (no mediana global) más flags `_missing` explícitos, porque la ausencia de dato tiene causa física, no aleatoria.
+- **Iteración de modelos**: Decision Tree baseline → LightGBM (gradient boosting) → MLP PyTorch (Dropout + BatchNorm) → LightGBM afinado con Optuna (40 trials, optimizando AMS directamente).
+- **Métrica de evaluación correcta para el dominio**: AMS (Approximate Median Significance), la métrica real del HiggsML Challenge, calculada con sumas de señal/background ponderadas por `KaggleWeight` — no accuracy ni AUC plano.
+- **Ablación de loss custom**: Focal Loss (Lin et al., 2017) con comparación de activaciones ReLU/GELU/Swish sobre la MLP de PyTorch.
+- **Verificación cruzada e independiente entre lenguajes**: reimplementación de AMS desde cero en Julia, usada para un barrido más fino (2.000 umbrales) que la versión en Python, para probar si el óptimo de AMS es un pico frágil o una meseta robusta.
+- **Persistencia y servicio**: DuckDB para features/predicciones/métricas, FastAPI para scoring en tiempo real (`POST /score`).
+- **Tests**: 10 tests de pytest cubriendo feature engineering, la métrica AMS y la comparación de activaciones.
+
 ## Uso
 
 ```powershell
@@ -93,6 +110,7 @@ pip install -r requirements.txt
 python -m src.pipeline          # pipeline completo, datos reales, metricas reales
 pytest tests/ -q                # 10/10 passing
 python -m src.activation_comparison  # ReLU vs GELU vs Swish, FocalLoss
+python -m src.interactive       # grafico interactivo AMS-vs-umbral en Plotly
 uvicorn src.api:app --reload    # POST /score
 ```
 
