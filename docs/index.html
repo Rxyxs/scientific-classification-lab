@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hunting the Higgs Boson</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5a5a5a; --accent: #2c5f8a;
+    --card: #f4f6f8; --border: #dfe4e8; --code-bg: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1216; --fg: #e6e9ed; --muted: #9aa4ae; --accent: #6fa8d8;
+             --card: #171c22; --border: #2a313a; --code-bg: #1b2127; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 2.1rem; margin-bottom: 4px; }
+  h2 { font-size: 1.35rem; margin-top: 2.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+  .tagline { color: var(--muted); font-size: 1.05rem; max-width: 70ch; }
+  .badges { margin: 18px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .badges img { height: 20px; }
+  table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  td:not(:first-child), th:not(:first-child) { text-align: right; }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 1.2em 0; }
+  .card strong { color: var(--accent); }
+  a { color: var(--accent); }
+  img.chart { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); margin: 0.6em 0; }
+  .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .gallery { grid-template-columns: 1fr; } }
+  .foot { margin-top: 3em; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 1.3em; }
+  li { margin: 0.35em 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hunting the Higgs Boson</h1>
+  <p class="tagline">Binary classification of proton-proton collision events (Higgs-to-tau-tau signal
+  vs. background) using the real ATLAS dataset released by CERN Open Data — the same data behind the
+  2014 HiggsML Challenge on Kaggle, not a synthetic simulation.</p>
+
+  <div class="badges">
+    <img src="https://img.shields.io/badge/Python-3.10-3776AB" alt="Python">
+    <img src="https://img.shields.io/badge/ML-LightGBM-02569B" alt="LightGBM">
+    <img src="https://img.shields.io/badge/DL-PyTorch-EE4C2C" alt="PyTorch">
+    <img src="https://img.shields.io/badge/DB-DuckDB-FFF000" alt="DuckDB">
+    <img src="https://img.shields.io/badge/API-FastAPI-009688" alt="FastAPI">
+    <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
+  </div>
+
+  <p>
+    <a href="https://github.com/Rxyxs/scientific-classification-lab/tree/main/01-higgs-boson-particle-classification">Source on GitHub</a>
+    · part of the <a href="https://github.com/Rxyxs/scientific-classification-lab">Scientific Classification Lab</a>
+    (also includes <a href="https://github.com/Rxyxs/scientific-classification-lab/tree/main/02-exoplanet-transit-classification">exoplanet transit classification</a>)
+  </p>
+
+  <h2>Dataset</h2>
+  <div class="card">
+    <strong><a href="https://opendata.cern.ch/record/328">ATLAS Higgs Challenge dataset</a></strong>,
+    CERN Open Data Portal, record 328 (CC0) — 818,238 real simulated collision events, 30
+    physics-derived features, official train / public-test / private-test split reproduced via the
+    original <code>KaggleSet</code> column (250,000 / 100,000 / 450,000 events) so results are
+    directly comparable to the historical 2014 Kaggle competition leaderboard. Downloaded for this
+    run on 2026-10-01 (<code>atlas-higgs-challenge-2014-v2.csv.gz</code>, 65,630,848 bytes).
+  </div>
+
+  <h2>The real-data problem: physically-defined missing values</h2>
+  <p>11 columns use <code>-999.0</code> as a sentinel — not random missingness. Dijet variables are
+  undefined whenever an event has fewer than 2 reconstructed jets; verified empirically: 100% of
+  <code>-999.0</code> in those columns occurs exactly at <code>PRI_jet_num ∈ {0,1}</code>. Fixed with
+  <strong>median imputation grouped by <code>PRI_jet_num</code></strong> (train-only, no leakage)
+  plus an explicit <code>_missing</code> flag per affected column.</p>
+  <img class="chart" src="assets/missing_by_jet_num.png" alt="Missing dijet values by jet count">
+
+  <h2>Results — real run, official train/public/private split</h2>
+  <p>Evaluated with <strong>AMS</strong> (Approximate Median Significance), the actual HiggsML
+  Challenge metric — not accuracy or plain AUC.</p>
+  <table>
+    <tr><th>Model</th><th>AMS (public test)</th><th>AUC</th><th>Accuracy</th></tr>
+    <tr><td>Decision Tree (baseline)</td><td>2.9312</td><td>0.8756</td><td>0.7722</td></tr>
+    <tr><td>LightGBM</td><td>3.5534</td><td>0.9106</td><td>0.7906</td></tr>
+    <tr><td>PyTorch MLP (Dropout+BatchNorm)</td><td>3.5778</td><td>0.9102</td><td>0.7900</td></tr>
+    <tr><td><strong>LightGBM, Optuna-tuned (40 trials)</strong></td><td><strong>3.6414</strong></td><td>—</td><td>—</td></tr>
+  </table>
+  <p>Held-out private test (450,000 events, never touched during model selection): untuned MLP AMS
+  3.5728 (0.14% from its public-test value); the Optuna-tuned LightGBM reaches <strong>AMS 3.6294</strong>
+  on the same held-out set (0.33% from its public-test value) — confirming the tuning gain is real,
+  not overfit to the public split.</p>
+  <img class="chart" src="assets/ams_comparison.png" alt="AMS comparison across models">
+
+  <h2>Activation function comparison (custom Focal Loss)</h2>
+  <table>
+    <tr><th>Activation</th><th>AMS (public test)</th><th>AUC</th></tr>
+    <tr><td><strong>ReLU</strong></td><td><strong>3.5699</strong></td><td>0.9096</td></tr>
+    <tr><td>GELU</td><td>3.5328</td><td>0.9094</td></tr>
+    <tr><td>Swish (SiLU)</td><td>3.4763</td><td>0.9074</td></tr>
+  </table>
+  <img class="chart" src="assets/activation_ams_comparison.png" alt="AMS by activation function">
+
+  <h2>Honest caveat</h2>
+  <div class="card">
+    The original 2014 Kaggle challenge's winning solutions (heavily tuned ensembles) reached
+    AMS ≈ 3.8–3.9. This project's iteration (baseline → GBM → NN → Optuna-tuned GBM, no ensembling)
+    reaching <strong>3.63–3.64</strong> on the official held-out set is an honest, unexaggerated
+    result of that iteration process — not a leaderboard-matching claim.
+  </div>
+
+  <h2>Reproduce it</h2>
+  <pre><code>git clone https://github.com/Rxyxs/scientific-classification-lab.git
+cd scientific-classification-lab/01-higgs-boson-particle-classification
+python -m venv venv &amp;&amp; venv\Scripts\activate
+pip install -r requirements.txt
+curl -L -o data/raw/atlas-higgs-challenge-2014-v2.csv.gz \
+  https://opendata.cern.ch/api/files/1dd5c95f-9224-4f0b-9d98-8ba96601aa4a/atlas-higgs-challenge-2014-v2.csv.gz
+gunzip data/raw/atlas-higgs-challenge-2014-v2.csv.gz
+mv data/raw/atlas-higgs-challenge-2014-v2.csv data/raw/atlas-higgs.csv
+pytest -q</code></pre>
+
+  <p class="foot">Pablo Reyes — <a href="https://github.com/Rxyxs">github.com/Rxyxs</a>. Code: MIT.</p>
+</main>
+</body>
+</html>
