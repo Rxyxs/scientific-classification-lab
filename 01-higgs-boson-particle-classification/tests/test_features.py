@@ -1,7 +1,17 @@
 import pandas as pd
 
-from src.data import MISSING_SENTINEL, load_raw, split_by_kaggle_set
+import pytest
+
+from src.data import MISSING_SENTINEL, RAW_PATH, load_raw, split_by_kaggle_set
 from src.features import JET_DEPENDENT_COLUMNS, engineer_features
+
+# El dataset ATLAS (800k filas) no se versiona, asi que el unico test que lo lee
+# salta cuando no esta en disco en vez de fallar -- misma convencion que ya usa
+# el subproyecto 02. Los demas tests de este archivo construyen sus propios
+# datos y corren siempre, incluido en CI.
+needs_raw_data = pytest.mark.skipif(
+    not RAW_PATH.exists(), reason="corre el fetch del dataset para bajar atlas-higgs.csv"
+)
 
 
 def test_missing_flag_matches_sentinel():
@@ -37,6 +47,7 @@ def test_missing_flag_matches_sentinel():
     assert not (features[JET_DEPENDENT_COLUMNS] == MISSING_SENTINEL).any().any()
 
 
+@needs_raw_data
 def test_kaggle_set_split_is_disjoint_and_matches_official_sizes():
     df = load_raw()
     train, public, private = split_by_kaggle_set(df)

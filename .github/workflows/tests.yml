@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - 01-higgs-boson-particle-classification
+          - 02-exoplanet-transit-classification
+    name: ${{ matrix.project }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ${{ matrix.project }}/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Cada subproyecto es autocontenido (su propio requirements.txt y su
+      # propio src/), por eso la matriz en vez de una corrida unica: asi un
+      # conflicto de dependencias entre los dos no se esconde detras de un
+      # entorno compartido que no existe fuera de CI.
+      #
+      # Los tests que leen los datasets reales -- ATLAS (800k filas) y los KOI
+      # del NASA Exoplanet Archive -- saltan en el runner, porque esos archivos
+      # no se versionan. El resto construye sus propios datos y corre siempre.
+      # fail-fast queda en false para ver los dos resultados y no solo el primero
+      # que falle.
+      - name: Run tests
+        run: pytest -v
