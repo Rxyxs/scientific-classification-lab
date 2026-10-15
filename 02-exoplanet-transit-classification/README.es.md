@@ -25,14 +25,16 @@ python -m src.visualization.plots        # genera los 4 gráficos de reports/fig
 | Modelo | Accuracy (holdout) | F1-macro |
 |---|---|---|
 | Baseline (clase mayoritaria) | 0.498 | 0.222 |
-| PyTorch MLP (Swish) | 0.748 | 0.711 |
-| PyTorch MLP (GELU) | 0.760 | 0.722 |
-| PyTorch MLP (ReLU) | 0.763 | 0.722 |
+| PyTorch MLP (Swish) | 0.783 | 0.738 |
+| PyTorch MLP (GELU) | 0.789 | 0.745 |
+| PyTorch MLP (ReLU) | 0.790 | 0.745 |
 | **XGBoost** | **0.793** | **0.756** |
 
 ![Comparación de modelos](reports/figures/model_comparison.png)
 
-**Hallazgo honesto**: XGBoost le gana a las tres variantes de MLP en este dataset tabular — consistente con la literatura de que los árboles de gradiente suelen superar a redes densas sobre features tabulares de tamaño moderado (9,200 filas, 12 features). Ninguna corrida de PyTorch se reporta como ganadora porque ninguna lo fue.
+**Protocolo de entrenamiento**: la validación para el early stopping es un 15% estratificado del split de entrenamiento; el holdout de 25% (el mismo en que se evalúa XGBoost) solo se usa para las métricas de arriba. Antes, el early stopping miraba el propio holdout. Cada red entrena al menos 100 épocas full-batch (máximo 3.000); desde ahí, early stopping corta tras 50 épocas sin mejora y restaura la mejor época, y el estado se guarda en un checkpoint cada 10 épocas para retomar una corrida interrumpida.
+
+**Hallazgo honesto**: la versión anterior limitaba el entrenamiento a 60 épocas y todas las corridas llegaban a ese tope (mejor época 60), así que las redes seguían aprendiendo. Entrenadas hasta converger (mejores épocas entre 749 y 1.018), la accuracy sube de 0,75-0,76 a 0,78-0,79 y los MLP quedan a 0,003 de XGBoost (ReLU 0,790 vs. 0,793). XGBoost sigue teniendo el F1-macro más alto (0,756 vs. 0,745) y sigue siendo el modelo de referencia, ahora por un margen tan chico que las dos familias empatan en la práctica en este dataset tabular (9.564 KOIs, 12 features).
 
 ![Matriz de confusión](reports/figures/confusion_matrix.png)
 
@@ -54,7 +56,7 @@ La clase `CANDIDATE` es la más difícil (F1=0.58) — y tiene sentido físico: 
 
 - **Ingesta de datos real**: descarga en vivo vía la API TAP de NASA (`requests` + query SQL-like), sin dataset descargado a mano ni caché estático.
 - **Feature engineering**: transformación `log1p` sobre 5 variables físicas con distribución muy sesgada (periodo, profundidad, radio, insolación, SNR) para que los modelos de árbol/red no queden dominados por outliers extremos; exclusión deliberada de las columnas `koi_fpflag_*` para evitar fuga de la etiqueta.
-- **Modelado**: baseline de clase mayoritaria (`DummyClassifier`) → XGBoost multiclase (`multi:softprob`, 300 árboles, profundidad 5) → ablación de red neuronal PyTorch (ReLU/GELU/Swish, BatchNorm+Dropout, early stopping por val loss).
+- **Modelado**: baseline de clase mayoritaria (`DummyClassifier`) → XGBoost multiclase (`multi:softprob`, 300 árboles, profundidad 5) → ablación de red neuronal PyTorch (ReLU/GELU/Swish, BatchNorm+Dropout, al menos 100 épocas, early stopping sobre una validación separada del train, checkpoints por época).
 - **Explicabilidad**: SHAP (`TreeExplainer`) sobre el modelo XGBoost — no opcional, mandatorio para un caso de uso científico donde el "por qué" importa tanto como el accuracy.
 - **Evaluación**: split estratificado 75/25 (`random_state=42`), accuracy + F1-macro (más informativo que accuracy solo, dado el desbalance entre las 3 clases), matriz de confusión y reporte de clasificación por clase.
 - **Tests**: 6 tests de pytest, offline contra el parquet ya descargado, que verifican el reclamo central del repo (XGBoost supera al baseline) como aserción reproducible, no solo como número en el README.

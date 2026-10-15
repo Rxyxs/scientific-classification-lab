@@ -16,7 +16,7 @@ import pandas as pd
 from src.data import load_raw, split_by_kaggle_set
 from src.features import engineer_features
 from src.modeling import (
-    evaluate_model, mlp_predict_proba, train_baseline_tree, train_lightgbm, train_mlp,
+    evaluate_model, mlp_predict_proba, split_validation, train_baseline_tree, train_lightgbm, train_mlp,
 )
 from src.database import export_results
 
@@ -55,7 +55,9 @@ def main() -> None:
     results.append(evaluate_model("lightgbm", lgbm_proba, y_public, w_public))
 
     print("[5/6] Red Neuronal: PyTorch MLP (Dropout + BatchNorm)...")
-    mlp, scaler = train_mlp(X_train.to_numpy(), y_train, X_public.to_numpy(), y_public)
+    X_fit, X_val, y_fit, y_val = split_validation(X_train.to_numpy(), y_train)
+    mlp, scaler = train_mlp(X_fit, y_fit, X_val, y_val,
+                            checkpoint_path=MODELS_DIR / "checkpoints" / "pytorch_mlp.ckpt")
     mlp_proba = mlp_predict_proba(mlp, scaler, X_public.to_numpy())
     results.append(evaluate_model("pytorch_mlp", mlp_proba, y_public, w_public))
 

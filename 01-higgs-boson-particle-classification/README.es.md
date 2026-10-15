@@ -45,10 +45,12 @@ Evaluado con **AMS** (Approximate Median Significance), la métrica real del Hig
 |---|---:|---:|---:|
 | Decision Tree (baseline) | 2.9312 | 0.8756 | 0.7722 |
 | LightGBM | 3.5534 | 0.9106 | 0.7906 |
-| PyTorch MLP (Dropout+BatchNorm) | 3.5778 | 0.9102 | 0.7900 |
+| PyTorch MLP (Dropout+BatchNorm) | 3.5198 | 0.9111 | 0.8092 |
 | **LightGBM, afinado con Optuna (40 trials)** | **3.6414** | — | — |
 
-**Private test held-out (450.000 eventos, nunca tocados durante la selección de modelo):** la MLP sin afinar da AMS 3.5728 (0,14% de su valor en public-test); el LightGBM afinado con Optuna alcanza **AMS 3.6294** en el mismo set held-out (0,33% de su valor en public-test) — confirmando que la mejora del tuning es real, no sobreajuste al split público.
+**Protocolo de entrenamiento de todas las MLP aquí**: el early stopping usa un 15% estratificado del split oficial de train; el public y el private test solo se evalúan. Antes, el early stopping miraba el public test, el mismo conjunto en que se reporta el AMS de arriba, lo que favorecía a la MLP (3,5778 entonces, 3,5198 ahora). Cada red entrena al menos 100 épocas (máximo 300), se detiene tras 15 épocas sin mejora, restaura la mejor época (la 98 aquí) y guarda un checkpoint cada época.
+
+**Private test held-out (450.000 eventos, nunca tocados durante la selección de modelo):** la MLP sin afinar da AMS 3,5391 y LightGBM 3,5999; el LightGBM afinado con Optuna alcanza **AMS 3.6294** en el mismo set held-out (0,33% de su valor en public-test) — confirmando que la mejora del tuning es real, no sobreajuste al split público.
 
 Como referencia: las soluciones ganadoras del challenge original de Kaggle 2014 (ensambles muy afinados) alcanzaron AMS ≈ 3.8–3.9. La iteración de este proyecto (baseline → GBM → red neuronal → GBM afinado con Optuna, sin ensamblar) llegando a 3,63–3,64 en el set held-out oficial es un resultado honesto y sin exagerar de ese proceso de iteración, no una pretensión de igualar el leaderboard.
 
@@ -58,9 +60,9 @@ Además de BCE plano, la MLP en PyTorch se reentrenó con una **Focal Loss custo
 
 | Activación | Loss | AMS (public test) | AUC |
 |---|---|---:|---:|
-| **ReLU** | FocalLoss(α=0.5, γ=2.0) | **3.5699** | 0.9096 |
-| GELU | FocalLoss(α=0.5, γ=2.0) | 3.5328 | 0.9094 |
-| Swish (SiLU) | FocalLoss(α=0.5, γ=2.0) | 3.4763 | 0.9074 |
+| ReLU | FocalLoss(α=0.5, γ=2.0) | 3.5279 | 0.9109 |
+| **GELU** | FocalLoss(α=0.5, γ=2.0) | **3.5640** | 0.9110 |
+| Swish (SiLU) | FocalLoss(α=0.5, γ=2.0) | 3.5050 | 0.9097 |
 
 Versión animada mostrando la evolución por época de cada activación durante el entrenamiento:
 
@@ -68,7 +70,7 @@ Versión animada mostrando la evolución por época de cada activación durante 
 ![Curvas de loss por activación](outputs/reports/activation_loss_curves.png)
 ![AMS por activación](outputs/reports/activation_ams_comparison.png)
 
-ReLU supera levemente a GELU y Swish en este dataset tabular ya normalizado — las activaciones suaves suelen ayudar más con entradas sin estandarizar o redes mucho más profundas, ninguno de los dos casos aplica aquí. Se ejecuta con `python -m src.activation_comparison`; los resultados también se persisten en la tabla `activation_comparison` de DuckDB.
+Con la validación tomada del split de train (mejores épocas entre 101 y 121), GELU queda primera y ReLU segunda; la corrida anterior, que hacía early stopping sobre el public test, ponía a ReLU primera. La diferencia es de 0,06 de AMS, lo bastante chica como para que el orden dependa de la regla de parada, así que no se declara ganadora a ninguna activación. Se ejecuta con `python -m src.activation_comparison`; los resultados también se persisten en la tabla `activation_comparison` de DuckDB.
 
 ## Ajuste de hiperparámetros (Optuna)
 
