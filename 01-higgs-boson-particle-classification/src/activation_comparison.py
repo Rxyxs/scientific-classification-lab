@@ -28,11 +28,13 @@ from sklearn.preprocessing import StandardScaler
 
 from src.data import load_raw, split_by_kaggle_set
 from src.features import engineer_features
+from src.modeling import MAX_EPOCHS, MIN_EPOCHS, PATIENCE, fit_mlp, split_validation
 from src.metrics import best_ams_over_thresholds
 from src.modeling import HiggsMLP, RANDOM_STATE
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORTS_DIR = ROOT / "outputs" / "reports"
+CHECKPOINT_DIR = ROOT / "outputs" / "models" / "checkpoints"
 
 ACTIVATIONS: dict[str, type[nn.Module]] = {
     "ReLU": nn.ReLU,
@@ -73,10 +75,12 @@ def train_mlp_variant(
     y_val: np.ndarray,
     activation: type[nn.Module],
     loss_fn: nn.Module,
-    epochs: int = 25,
+    epochs: int = MAX_EPOCHS,
     batch_size: int = 2048,
     lr: float = 1e-3,
-    patience: int = 5,
+    patience: int = PATIENCE,
+    min_epochs: int = MIN_EPOCHS,
+    checkpoint_path: Path | None = None,
 ) -> tuple[HiggsMLP, StandardScaler, list[float], list[float]]:
     """Entrena una variante de HiggsMLP con la activacion y loss dadas.
     Devuelve el modelo, el scaler y las curvas de loss (train/val) por epoca.
@@ -89,43 +93,9 @@ def train_mlp_variant(
 
     torch.manual_seed(RANDOM_STATE)
     model = HiggsMLP(n_features=X_train.shape[1], activation=activation)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
-
-    n = Xt.shape[0]
-    train_losses, val_losses = [], []
-    best_val_loss, best_state, bad_epochs = float("inf"), None, 0
-    rng = np.random.default_rng(RANDOM_STATE)
-
-    for _epoch in range(epochs):
-        model.train()
-        perm = rng.permutation(n)
-        epoch_loss, n_batches = 0.0, 0
-        for i in range(0, n, batch_size):
-            idx = perm[i : i + batch_size]
-            xb, yb = Xt[idx], yt[idx]
-            optimizer.zero_grad()
-            loss = loss_fn(model(xb), yb)
-            loss.backward()
-            optimizer.step()
-            epoch_loss += loss.item()
-            n_batches += 1
-        train_losses.append(epoch_loss / max(n_batches, 1))
-
-        model.eval()
-        with torch.no_grad():
-            val_loss = loss_fn(model(Xv), yv).item()
-        val_losses.append(val_loss)
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_state = {k: v.clone() for k, v in model.state_dict().items()}
-            bad_epochs = 0
-        else:
-            bad_epochs += 1
-            if bad_epochs >= patience:
-                break
-
-    model.load_state_dict(best_state)
+    train_losses, val_losses, _best = fit_mlp(model, loss_fn, Xt, yt, Xv, yv, epochs=epochs, min_epochs=min_epochs,
+                                              patience=patience, batch_size=batch_size, lr=lr,
+                                              checkpoint_path=checkpoint_path)
     return model, scaler, train_losses, val_losses
 
 
@@ -136,7 +106,7 @@ def mlp_predict_proba(model: HiggsMLP, scaler: StandardScaler, X: np.ndarray) ->
         return torch.sigmoid(logits).numpy()
 
 
-def run_comparison(epochs: int = 25) -> pd.DataFrame:
+def run_comparison(epochs: int = MAX_EPOCHS) -> pd.DataFrame:
     """Entrena un HiggsMLP con FocalLoss para cada activacion en ACTIVATIONS
     y devuelve una tabla comparativa (AMS/AUC en public-test). Tambien
     guarda las curvas de loss/epoca y el grafico comparativo en
@@ -154,6 +124,8 @@ def run_comparison(epochs: int = 25) -> pd.DataFrame:
     w_public = public_df["KaggleWeight"].to_numpy()
 
     loss_fn = FocalLoss(alpha=0.5, gamma=2.0)
+    # Validacion para early stopping: 15% estratificado del train oficial; el public-test solo se usa para medir.
+    X_fit, X_val, y_fit, y_val = split_validation(X_train.to_numpy(), y_train)
 
     results = []
     curves: dict[str, dict[str, list[float]]] = {}
@@ -161,9 +133,11 @@ def run_comparison(epochs: int = 25) -> pd.DataFrame:
     for name, activation in ACTIVATIONS.items():
         print(f"Entrenando MLP con activacion={name}, loss=FocalLoss(alpha=0.5, gamma=2.0)...")
         model, scaler, train_losses, val_losses = train_mlp_variant(
-            X_train.to_numpy(), y_train, X_public.to_numpy(), y_public,
-            activation=activation, loss_fn=loss_fn, epochs=epochs,
+            X_fit, y_fit, X_val, y_val, activation=activation, loss_fn=loss_fn, epochs=epochs,
+            checkpoint_path=CHECKPOINT_DIR / f"mlp_{name}.ckpt",
         )
+        best_epoch = int(np.argmin(val_losses)) + 1
+        print(f"  {name}: mejor epoca {best_epoch} de {len(val_losses)}")
         proba = mlp_predict_proba(model, scaler, X_public.to_numpy())
         ams, threshold = best_ams_over_thresholds(y_public, proba, w_public)
         from sklearn.metrics import roc_auc_score
@@ -175,6 +149,7 @@ def run_comparison(epochs: int = 25) -> pd.DataFrame:
             "best_threshold": round(float(threshold), 4),
             "auc": round(float(roc_auc_score(y_public, proba)), 4),
             "epochs_trained": len(train_losses),
+            "best_epoch": best_epoch,
         })
         curves[name] = {"train_loss": train_losses, "val_loss": val_losses}
 

@@ -88,11 +88,11 @@
     <tr><th>Model</th><th>AMS (public test)</th><th>AUC</th><th>Accuracy</th></tr>
     <tr><td>Decision Tree (baseline)</td><td>2.9312</td><td>0.8756</td><td>0.7722</td></tr>
     <tr><td>LightGBM</td><td>3.5534</td><td>0.9106</td><td>0.7906</td></tr>
-    <tr><td>PyTorch MLP (Dropout+BatchNorm)</td><td>3.5778</td><td>0.9102</td><td>0.7900</td></tr>
+    <tr><td>PyTorch MLP (Dropout+BatchNorm)</td><td>3.5198</td><td>0.9111</td><td>0.8092</td></tr>
     <tr><td><strong>LightGBM, Optuna-tuned (40 trials)</strong></td><td><strong>3.6414</strong></td><td>—</td><td>—</td></tr>
   </table>
   <p>Held-out private test (450,000 events, never touched during model selection): untuned MLP AMS
-  3.5728 (0.14% from its public-test value); the Optuna-tuned LightGBM reaches <strong>AMS 3.6294</strong>
+  3.5391, LightGBM 3.5999; the Optuna-tuned LightGBM reaches <strong>AMS 3.6294</strong>
   on the same held-out set (0.33% from its public-test value) — confirming the tuning gain is real,
   not overfit to the public split.</p>
   <img class="chart" src="assets/ams_comparison.png" alt="AMS comparison across models">
@@ -100,9 +100,9 @@
   <h2>Activation function comparison (custom Focal Loss)</h2>
   <table>
     <tr><th>Activation</th><th>AMS (public test)</th><th>AUC</th></tr>
-    <tr><td><strong>ReLU</strong></td><td><strong>3.5699</strong></td><td>0.9096</td></tr>
-    <tr><td>GELU</td><td>3.5328</td><td>0.9094</td></tr>
-    <tr><td>Swish (SiLU)</td><td>3.4763</td><td>0.9074</td></tr>
+    <tr><td>ReLU</td><td>3.5279</td><td>0.9109</td></tr>
+    <tr><td><strong>GELU</strong></td><td><strong>3.5640</strong></td><td>0.9110</td></tr>
+    <tr><td>Swish (SiLU)</td><td>3.5050</td><td>0.9097</td></tr>
   </table>
   <img class="chart" src="assets/activation_ams_comparison.png" alt="AMS by activation function">
 

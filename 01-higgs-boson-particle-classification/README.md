@@ -45,10 +45,12 @@ Evaluated with **AMS** (Approximate Median Significance), the actual HiggsML Cha
 |---|---:|---:|---:|
 | Decision Tree (baseline) | 2.9312 | 0.8756 | 0.7722 |
 | LightGBM | 3.5534 | 0.9106 | 0.7906 |
-| PyTorch MLP (Dropout+BatchNorm) | 3.5778 | 0.9102 | 0.7900 |
+| PyTorch MLP (Dropout+BatchNorm) | 3.5198 | 0.9111 | 0.8092 |
 | **LightGBM, Optuna-tuned (40 trials)** | **3.6414** | — | — |
 
-**Held-out private test (450,000 events, never touched during model selection):** untuned MLP AMS 3.5728 (0.14% from its public-test value); the Optuna-tuned LightGBM reaches **AMS 3.6294** on the same held-out set (0.33% from its public-test value) — confirming the tuning gain is real, not overfit to the public split.
+**Training protocol for every MLP here**: early stopping uses a stratified 15% of the official train split; the public and private test sets are only scored. Before, early stopping watched the public test, the same set the AMS above is reported on, which flattered the MLP (3.5778 then, 3.5198 now). Each network trains at least 100 epochs (at most 300), early-stops after 15 epochs without improvement, restores the best epoch (98 here) and is checkpointed every epoch.
+
+**Held-out private test (450,000 events, never touched during model selection):** untuned MLP AMS 3.5391, LightGBM 3.5999; the Optuna-tuned LightGBM reaches **AMS 3.6294** on the same held-out set (0.33% from its public-test value) — confirming the tuning gain is real, not overfit to the public split.
 
 For reference: the original 2014 Kaggle challenge's winning solutions (heavily tuned ensembles) reached AMS ≈ 3.8–3.9. This project's iteration (baseline → GBM → NN → Optuna-tuned GBM, no ensembling) reaching 3.63–3.64 on the official held-out set is an honest, unexaggerated result of that iteration process, not a leaderboard-matching claim.
 
@@ -58,9 +60,9 @@ To go beyond plain BCE, the PyTorch MLP was also retrained with a **custom Focal
 
 | Activation | Loss | AMS (public test) | AUC |
 |---|---|---:|---:|
-| **ReLU** | FocalLoss(α=0.5, γ=2.0) | **3.5699** | 0.9096 |
-| GELU | FocalLoss(α=0.5, γ=2.0) | 3.5328 | 0.9094 |
-| Swish (SiLU) | FocalLoss(α=0.5, γ=2.0) | 3.4763 | 0.9074 |
+| ReLU | FocalLoss(α=0.5, γ=2.0) | 3.5279 | 0.9109 |
+| **GELU** | FocalLoss(α=0.5, γ=2.0) | **3.5640** | 0.9110 |
+| Swish (SiLU) | FocalLoss(α=0.5, γ=2.0) | 3.5050 | 0.9097 |
 
 Animated version showing the per-epoch race between activations as training progresses:
 
@@ -68,7 +70,7 @@ Animated version showing the per-epoch race between activations as training prog
 ![Activation loss curves](outputs/reports/activation_loss_curves.png)
 ![AMS by activation](outputs/reports/activation_ams_comparison.png)
 
-ReLU edges out GELU and Swish on this tabular, already-normalized feature set — smoother activations tend to help more on raw/unstandardized inputs or very deep nets, neither of which applies here. Run it with `python -m src.activation_comparison`; results are also persisted to the `activation_comparison` table in DuckDB.
+With validation taken from the train split (best epochs 101-121), GELU comes first and ReLU second; the previous run, which early-stopped on the public test, had ReLU first. The spread is 0.06 AMS, small enough that the ranking depends on the stopping rule, so no activation is declared the winner here. Run it with `python -m src.activation_comparison`; results are also persisted to the `activation_comparison` table in DuckDB.
 
 ## Hyperparameter tuning (Optuna)
 

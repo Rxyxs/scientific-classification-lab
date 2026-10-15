@@ -65,7 +65,7 @@ def plot_activation_comparison() -> None:
         metrics = json.load(f)
 
     names = list(results.keys()) + ["xgboost"]
-    accs = [results[n]["val_accuracy"] for n in results] + [metrics["xgboost_accuracy"]]
+    accs = [results[n]["test_accuracy"] for n in results] + [metrics["xgboost_accuracy"]]
     colors = ["#6C757D"] * len(results) + ["#2A6F97"]
 
     fig, ax = plt.subplots(figsize=(7, 4.5))

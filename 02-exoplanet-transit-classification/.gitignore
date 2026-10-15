@@ -7,3 +7,6 @@ data/raw/
 *.duckdb
 *.joblib
 *.pt
+
+# Checkpoints de entrenamiento del MLP (se regeneran)
+outputs/models/checkpoints/
