@@ -5,6 +5,8 @@ same architecture except activation).
 """
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -45,7 +47,30 @@ class KOIClassifierNet(nn.Module):
         return self.net(x)
 
 
-def train_one(X_train, y_train, X_val, y_val, n_classes: int, activation: str, epochs: int = 60, patience: int = 10):
+MIN_EPOCHS = 100   # ninguna red se detiene antes de 100 epocas
+MAX_EPOCHS = 3000  # epocas full-batch: cada una es un solo paso de gradiente
+PATIENCE = 50
+VAL_FRACTION = 0.15
+CHECKPOINT_EVERY = 10
+CHECKPOINT_DIR = ROOT / "outputs" / "models" / "checkpoints"
+
+
+def _fingerprint(*arrays, **config) -> str:
+    h = hashlib.sha256()
+    for a in arrays:
+        h.update(np.ascontiguousarray(np.asarray(a, dtype=np.float32)).tobytes())
+    h.update(json.dumps(config, sort_keys=True).encode())
+    return h.hexdigest()[:16]
+
+
+def train_one(X_train, y_train, X_val, y_val, n_classes: int, activation: str,
+              epochs: int = MAX_EPOCHS, patience: int = PATIENCE, min_epochs: int = MIN_EPOCHS,
+              X_test=None, y_test=None, checkpoint_path: Path | None = None):
+    """Entrena con early stopping sobre (X_val, y_val), que debe salir del train;
+    al menos ``min_epochs`` epocas, desde ahi corta tras ``patience`` sin mejora y
+    restaura la mejor epoca. El estado se guarda cada ``CHECKPOINT_EVERY`` epocas.
+    Las metricas finales se calculan sobre (X_test, y_test), que el
+    entrenamiento nunca mira."""
     torch.manual_seed(42)
     model = KOIClassifierNet(X_train.shape[1], n_classes, activation=activation)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -54,39 +79,64 @@ def train_one(X_train, y_train, X_val, y_val, n_classes: int, activation: str, e
     Xt, yt = torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.long)
     Xv, yv = torch.tensor(X_val, dtype=torch.float32), torch.tensor(y_val, dtype=torch.long)
 
-    best_val_loss, best_epoch, best_state, bad_epochs = float("inf"), 0, None, 0
-    val_losses = []
-    for epoch in range(epochs):
+    fp = _fingerprint(X_train, y_train, X_val, y_val, activation=activation, epochs=epochs,
+                      patience=patience, min_epochs=min_epochs)
+    state = {"epoch": 0, "val_losses": [], "best_val": float("inf"), "best_epoch": 0, "best_state": None,
+             "bad_epochs": 0, "done": False}
+    if checkpoint_path is not None and Path(checkpoint_path).exists():
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        if ckpt.get("fingerprint") == fp:
+            model.load_state_dict(ckpt["model"])
+            optimizer.load_state_dict(ckpt["optimizer"])
+            state = ckpt["state"]
+
+    def save_checkpoint() -> None:
+        if checkpoint_path is None:
+            return
+        path = Path(checkpoint_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        torch.save({"fingerprint": fp, "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                    "state": state}, tmp)
+        tmp.replace(path)
+
+    while not state["done"] and state["epoch"] < epochs:
+        torch.manual_seed(42 + state["epoch"])  # mascaras de dropout reproducibles al retomar
         model.train()
         optimizer.zero_grad()
         loss = loss_fn(model(Xt), yt)
         loss.backward()
         optimizer.step()
+        state["epoch"] += 1
 
         model.eval()
         with torch.no_grad():
             val_loss = loss_fn(model(Xv), yv).item()
-        val_losses.append(val_loss)
-
-        if val_loss < best_val_loss:
-            best_val_loss, best_epoch = val_loss, epoch + 1
-            best_state = {k: v.clone() for k, v in model.state_dict().items()}
-            bad_epochs = 0
+        state["val_losses"].append(val_loss)
+        if val_loss < state["best_val"] - 1e-7:
+            state.update(best_val=val_loss, best_epoch=state["epoch"], bad_epochs=0,
+                         best_state=copy.deepcopy(model.state_dict()))
         else:
-            bad_epochs += 1
-            if bad_epochs >= patience:
-                break
+            state["bad_epochs"] += 1
+        if state["epoch"] >= min(min_epochs, epochs) and state["bad_epochs"] >= patience:
+            state["done"] = True
+        if state["epoch"] % CHECKPOINT_EVERY == 0:
+            save_checkpoint()
 
-    model.load_state_dict(best_state)
+    model.load_state_dict(state["best_state"])
+    state["done"] = True
+    save_checkpoint()
     model.eval()
+    X_eval, y_eval = (X_val, y_val) if X_test is None else (X_test, y_test)
     with torch.no_grad():
-        val_pred = model(Xv).argmax(dim=1).numpy()
+        pred = model(torch.tensor(X_eval, dtype=torch.float32)).argmax(dim=1).numpy()
 
     return {
         "activation": activation,
-        "best_epoch": best_epoch,
-        "val_accuracy": float(accuracy_score(y_val, val_pred)),
-        "val_f1_macro": float(f1_score(y_val, val_pred, average="macro")),
+        "best_epoch": state["best_epoch"],
+        "epochs_run": state["epoch"],
+        "test_accuracy": float(accuracy_score(y_eval, pred)),
+        "test_f1_macro": float(f1_score(y_eval, pred, average="macro")),
     }
 
 
@@ -99,16 +149,23 @@ def main() -> None:
     y = label_encoder.fit_transform(y_str)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
+    # Validacion para early stopping: 15% estratificado del train. El test (25%, mismo split que XGBoost)
+    # solo se usa para las metricas finales; antes el early stopping miraba el test.
+    X_fit, X_val, y_fit, y_val = train_test_split(X_train, y_train, test_size=VAL_FRACTION, random_state=42,
+                                                  stratify=y_train)
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
+    X_fit = scaler.fit_transform(X_fit)
+    X_val = scaler.transform(X_val)
     X_test = scaler.transform(X_test)
 
     results = {}
     for name in ACTIVATIONS:
         print(f"Entrenando MLP con activacion '{name}'...")
-        res = train_one(X_train, y_train, X_test, y_test, n_classes=len(label_encoder.classes_), activation=name)
+        res = train_one(X_fit, y_fit, X_val, y_val, n_classes=len(label_encoder.classes_), activation=name,
+                        X_test=X_test, y_test=y_test, checkpoint_path=CHECKPOINT_DIR / f"mlp_{name}.ckpt")
         results[name] = res
-        print(f"  [{name}] mejor epoch {res['best_epoch']} | accuracy val {res['val_accuracy']:.4f} | F1-macro {res['val_f1_macro']:.4f}")
+        print(f"  [{name}] mejor epoch {res['best_epoch']} de {res['epochs_run']} | accuracy test "
+              f"{res['test_accuracy']:.4f} | F1-macro {res['test_f1_macro']:.4f}")
 
     with open(REPORTS_DIR / "torch_activation_comparison.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)

@@ -34,7 +34,7 @@ Both use real scientific data with published ground truth — no synthetic gener
 
 **How to read it.** AMS (Approximate Median Significance) on the public test set at each model's own optimal threshold — the official metric of the 2014 ATLAS challenge, not accuracy. Higher is better. The three bars are the untuned comparison; the Optuna-tuned LightGBM that reaches 3.641 is not in this figure.
 
-The jump that matters is the first one: a decision-tree baseline at 2.931 to LightGBM at 3.553, a 21% gain. After that the returns flatten — **the PyTorch MLP at 3.578 edges LightGBM by 0.025**, a difference small enough that it is reported as a tie in substance rather than a win for the neural network. Tuning then adds 0.088 on top of LightGBM, and that gain is confirmed on a private set that was never used for selection.
+The jump that matters is the first one: a decision-tree baseline at 2.931 to LightGBM at 3.553, a 21% gain. After that the returns flatten — **the PyTorch MLP at 3.520 lands 0.034 below LightGBM**, a tie in substance. (An earlier run showed the MLP ahead at 3.578, but its early stopping watched this same public test set; with validation taken from the train split, the edge disappears.) Tuning then adds 0.088 on top of LightGBM, and that gain is confirmed on a private set that was never used for selection.
 
 The honest ceiling is stated rather than hidden: the challenge's 2014 winners reached roughly 3.8–3.9 with heavily tuned ensembles. This project reaches 3.63–3.64 without ensembling at all.
 
@@ -42,9 +42,9 @@ The honest ceiling is stated rather than hidden: the challenge's 2014 winners re
 
 ![Model comparison, exoplanets](02-exoplanet-transit-classification/reports/figures/model_comparison.png)
 
-**How to read it.** Held-out accuracy on 9,564 real Kepler Objects of Interest, three classes (CONFIRMED / CANDIDATE / FALSE POSITIVE). The dashed line at 0.498 is the majority-class baseline — anything below it is worse than guessing the most common answer. Three PyTorch activations in grey, XGBoost in blue. *(The legend box partially covers the ReLU and GELU labels; their values are 0.763 and 0.760, from the folder's results table.)*
+**How to read it.** Held-out accuracy on 9,564 real Kepler Objects of Interest, three classes (CONFIRMED / CANDIDATE / FALSE POSITIVE). The dashed line at 0.498 is the majority-class baseline — anything below it is worse than guessing the most common answer. Three PyTorch activations in grey, XGBoost in blue. *(The legend box partially covers the ReLU and GELU labels; their values are 0.790 and 0.789, from the folder's results table.)*
 
-XGBoost wins at 0.793 against the best MLP at 0.763. Taken together with the Higgs figure above, the pair makes a point neither makes alone: on 818k physics events the network ties the gradient-boosted trees, and on 9,564 tabular KOIs it loses to them. Neither result is dressed up as a verdict on deep learning — the folders report what each run produced and name the dataset size and shape as the likely reason.
+XGBoost reaches 0.793 against the best MLP at 0.790, once the MLPs are trained to convergence (an earlier run capped them at 60 epochs and scored 0.763). Taken together with the Higgs figure above, the pair makes the same point twice: on 818k physics events and on 9,564 tabular KOIs, a properly trained network ties the gradient-boosted trees without beating them. Neither result is dressed up as a verdict on deep learning — the folders report what each run produced and name the dataset size and shape as the likely reason.
 
 ---
 

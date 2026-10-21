@@ -34,7 +34,7 @@ Los dos usan datos científicos reales con verdad terreno publicada — sin gene
 
 **Cómo leerla.** AMS (Approximate Median Significance) sobre el test público, con el umbral óptimo de cada modelo — la métrica oficial del desafío ATLAS 2014, no la accuracy. Más alto es mejor. Las tres barras son la comparación sin ajustar; el LightGBM ajustado con Optuna que llega a 3,641 no está en esta figura.
 
-El salto que importa es el primero: de un árbol de decisión en 2,931 a LightGBM en 3,553, un 21% de ganancia. Después los retornos se aplanan — **el MLP de PyTorch en 3,578 le gana a LightGBM por 0,025**, una diferencia lo bastante chica como para reportarse en sustancia como empate y no como triunfo de la red neuronal. El ajuste suma después 0,088 sobre LightGBM, y esa ganancia se confirma sobre un conjunto privado que nunca se usó para seleccionar.
+El salto que importa es el primero: de un árbol de decisión en 2,931 a LightGBM en 3,553, un 21% de ganancia. Después los retornos se aplanan — **el MLP de PyTorch en 3,520 queda 0,034 bajo LightGBM**, en sustancia un empate. (Una corrida anterior mostraba al MLP adelante con 3,578, pero su early stopping miraba este mismo public test; con la validación tomada del split de train, la ventaja desaparece.) El ajuste suma después 0,088 sobre LightGBM, y esa ganancia se confirma sobre un conjunto privado que nunca se usó para seleccionar.
 
 El techo honesto está dicho en vez de escondido: los ganadores del desafío en 2014 llegaron a aproximadamente 3,8–3,9 con ensambles fuertemente ajustados. Este proyecto llega a 3,63–3,64 sin ensamblar nada.
 
@@ -42,9 +42,9 @@ El techo honesto está dicho en vez de escondido: los ganadores del desafío en 
 
 ![Comparación de modelos, exoplanetas](02-exoplanet-transit-classification/reports/figures/model_comparison.png)
 
-**Cómo leerla.** Accuracy en holdout sobre 9.564 Kepler Objects of Interest reales, tres clases (CONFIRMED / CANDIDATE / FALSE POSITIVE). La línea punteada en 0,498 es la línea base de clase mayoritaria — cualquier cosa por debajo es peor que adivinar la respuesta más común. Tres activaciones de PyTorch en gris, XGBoost en azul. *(La caja de leyenda tapa parcialmente las etiquetas de ReLU y GELU; sus valores son 0,763 y 0,760, según la tabla de resultados de la carpeta.)*
+**Cómo leerla.** Accuracy en holdout sobre 9.564 Kepler Objects of Interest reales, tres clases (CONFIRMED / CANDIDATE / FALSE POSITIVE). La línea punteada en 0,498 es la línea base de clase mayoritaria — cualquier cosa por debajo es peor que adivinar la respuesta más común. Tres activaciones de PyTorch en gris, XGBoost en azul. *(La caja de leyenda tapa parcialmente las etiquetas de ReLU y GELU; sus valores son 0,790 y 0,789, según la tabla de resultados de la carpeta.)*
 
-XGBoost gana con 0,793 contra el mejor MLP en 0,763. Junto con la figura de Higgs de arriba, el par hace un punto que ninguna hace sola: sobre 818k eventos de física la red empata con los árboles con gradiente, y sobre 9.564 KOIs tabulares les pierde. Ninguno de los dos resultados se disfraza de veredicto sobre deep learning — las carpetas reportan lo que produjo cada corrida y señalan el tamaño y la forma del dataset como la razón probable.
+XGBoost llega a 0,793 contra el mejor MLP en 0,790, una vez que los MLP se entrenan hasta converger (una corrida anterior los cortaba en 60 épocas y daba 0,763). Junto con la figura de Higgs de arriba, el par hace el mismo punto dos veces: sobre 818k eventos de física y sobre 9.564 KOIs tabulares, una red bien entrenada empata con los árboles con gradiente sin superarlos. Ninguno de los dos resultados se disfraza de veredicto sobre deep learning — las carpetas reportan lo que produjo cada corrida y señalan el tamaño y la forma del dataset como la razón probable.
 
 ---
 

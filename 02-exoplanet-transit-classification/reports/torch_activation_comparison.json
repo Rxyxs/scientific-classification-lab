@@ -1,20 +1,23 @@
 {
   "relu": {
     "activation": "relu",
-    "best_epoch": 60,
-    "val_accuracy": 0.7626086956521739,
-    "val_f1_macro": 0.7221568965804671
+    "best_epoch": 749,
+    "epochs_run": 799,
+    "test_accuracy": 0.7895652173913044,
+    "test_f1_macro": 0.7450500537580488
   },
   "gelu": {
     "activation": "gelu",
-    "best_epoch": 60,
-    "val_accuracy": 0.76,
-    "val_f1_macro": 0.7216338568602957
+    "best_epoch": 1017,
+    "epochs_run": 1067,
+    "test_accuracy": 0.7891304347826087,
+    "test_f1_macro": 0.7452164712567978
   },
   "swish": {
     "activation": "swish",
-    "best_epoch": 60,
-    "val_accuracy": 0.7478260869565218,
-    "val_f1_macro": 0.7111988433198286
+    "best_epoch": 1018,
+    "epochs_run": 1068,
+    "test_accuracy": 0.7830434782608696,
+    "test_f1_macro": 0.7378110112001571
   }
 }

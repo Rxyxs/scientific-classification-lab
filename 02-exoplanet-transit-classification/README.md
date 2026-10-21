@@ -25,14 +25,16 @@ python -m src.visualization.plots        # generates all 4 charts in reports/fig
 | Model | Accuracy (holdout) | F1-macro |
 |---|---|---|
 | Baseline (majority class) | 0.498 | 0.222 |
-| PyTorch MLP (Swish) | 0.748 | 0.711 |
-| PyTorch MLP (GELU) | 0.760 | 0.722 |
-| PyTorch MLP (ReLU) | 0.763 | 0.722 |
+| PyTorch MLP (Swish) | 0.783 | 0.738 |
+| PyTorch MLP (GELU) | 0.789 | 0.745 |
+| PyTorch MLP (ReLU) | 0.790 | 0.745 |
 | **XGBoost** | **0.793** | **0.756** |
 
 ![Model comparison](reports/figures/model_comparison.png)
 
-**Honest finding**: XGBoost beats all three MLP variants on this tabular dataset — consistent with the well-known pattern that gradient-boosted trees tend to outperform dense networks on moderate-sized tabular features (9,200 rows, 12 features). No PyTorch run is reported as the winner because none was.
+**Training protocol**: validation for early stopping is a stratified 15% of the training split; the 25% holdout (the same one XGBoost is scored on) is used only for the metrics above. Before, early stopping watched the holdout itself. Each network trains at least 100 full-batch epochs (at most 3,000); after that, early stopping ends the run after 50 epochs without improvement and restores the best epoch, and the state is checkpointed every 10 epochs so an interrupted run resumes.
+
+**Honest finding**: the previous version capped training at 60 epochs and every run hit that cap (best epoch 60), so the networks were still learning. Trained to convergence (best epochs 749-1,018), accuracy rises from 0.75-0.76 to 0.78-0.79 and the MLPs come within 0.003 of XGBoost (ReLU 0.790 vs. 0.793). XGBoost still has the higher F1-macro (0.756 vs. 0.745) and stays the reference model, now by a margin small enough that the two families are effectively tied on this tabular dataset (9,564 KOIs, 12 features).
 
 ![Confusion matrix](reports/figures/confusion_matrix.png)
 
@@ -54,7 +56,7 @@ The `CANDIDATE` class is hardest (F1=0.58) — and that makes physical sense: it
 
 - **Real data ingestion**: live download via NASA's TAP API (`requests` + SQL-like query), no hand-downloaded dataset or static cache.
 - **Feature engineering**: `log1p` transform on 5 heavily right-skewed physical quantities (period, depth, radius, insolation, SNR) so tree/NN models aren't dominated by extreme outliers; deliberate exclusion of `koi_fpflag_*` columns to avoid label leakage.
-- **Modeling**: majority-class baseline (`DummyClassifier`) → multiclass XGBoost (`multi:softprob`, 300 trees, depth 5) → PyTorch MLP activation ablation (ReLU/GELU/Swish, BatchNorm+Dropout, early stopping on validation loss).
+- **Modeling**: majority-class baseline (`DummyClassifier`) → multiclass XGBoost (`multi:softprob`, 300 trees, depth 5) → PyTorch MLP activation ablation (ReLU/GELU/Swish, BatchNorm+Dropout, at least 100 epochs, early stopping on a validation split carved from train, per-epoch checkpoints).
 - **Explainability**: SHAP (`TreeExplainer`) on the XGBoost model — mandatory, not optional, for a scientific use case where "why" matters as much as accuracy.
 - **Evaluation**: stratified 75/25 split (`random_state=42`), accuracy + F1-macro (more informative than accuracy alone given the 3-class imbalance), confusion matrix and per-class classification report.
 - **Tests**: 6 pytest tests, offline against the already-downloaded parquet, that verify the repo's central claim (XGBoost beats the baseline) as a reproducible assertion, not just a README number.
